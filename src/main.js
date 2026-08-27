@@ -23,6 +23,7 @@ let lastTime = performance.now();
 let musicWanted = true;
 
 const stars = [];
+const heroMotes = [];
 const petals = [];
 const embers = [];
 const bursts = [];
@@ -79,6 +80,7 @@ function resizeCanvases() {
   }
 
   createStars();
+  createHeroMotes();
   createPetals();
   createEmbers();
 }
@@ -96,6 +98,30 @@ function createStars() {
       phase: random(0, Math.PI * 2),
       drift: random(1.2, 5.2),
       hue: Math.random() > .75 ? "153,190,255" : "255,232,171"
+    });
+  }
+}
+
+function createHeroMotes() {
+  heroMotes.length = 0;
+  const count = reducedMotion ? 96 : mobile ? 210 : 360;
+
+  for (let i = 0; i < count; i += 1) {
+    const core = Math.random() < .4;
+    heroMotes.push({
+      angle: random(0, Math.PI * 2),
+      radius: core ? random(.08, .58) : random(.5, 1.08),
+      vertical: random(.56, 1.02),
+      phase: random(0, Math.PI * 2),
+      drift: random(.035, .16) * (Math.random() > .5 ? 1 : -1),
+      wanderX: random(4, 24),
+      wanderY: random(4, 20),
+      size: Math.random() < .07 ? random(1.35, 2.05) : random(.3, 1.18),
+      alpha: random(.34, .94),
+      twinkle: random(1.15, 4.8),
+      front: Math.random() > .52,
+      glint: Math.random() < .075,
+      tone: Math.random()
     });
   }
 }
@@ -235,57 +261,55 @@ function drawHeroHalo(ctx, time) {
   ctx.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
 }
 
-function drawOrbitLayer(ctx, time, front) {
+function drawHeroMotes(ctx, time, front) {
   if (scene !== "bouquet" && scene !== "cake" && scene !== "wished") return;
 
   const point = heroPoint();
-  const base = Math.min(width * (mobile ? .38 : .24), height * .34);
   const state = scene === "bouquet" ? heroStates.bouquet : heroStates.cake;
-  const turn = state.ry * Math.PI / 180;
-  const orbitSet = scene === "bouquet"
-    ? [
-        { scale: 1.23, squash: .31, rotation: -.2, speed: .17, color: "183,166,255" },
-        { scale: .94, squash: .42, rotation: .34, speed: -.22, color: "255,217,144" },
-        { scale: .7, squash: .28, rotation: -.52, speed: .29, color: "126,192,255" }
-      ]
-    : [
-        { scale: 1.18, squash: .3, rotation: -.18, speed: .2, color: "163,179,255" },
-        { scale: .89, squash: .4, rotation: .38, speed: -.25, color: "255,205,118" },
-        { scale: .68, squash: .25, rotation: -.48, speed: .33, color: "214,143,255" }
-      ];
+  const cakeScene = scene !== "bouquet";
+  const extentX = Math.min(width * (mobile ? .47 : cakeScene ? .265 : .31), height * (cakeScene ? .43 : .54));
+  const extentY = Math.min(height * (mobile ? .31 : cakeScene ? .42 : .4), width * .27);
+  const rotationShift = state.ry * (front ? 1.05 : -.55);
 
-  orbitSet.forEach((orbit, orbitIndex) => {
-    const rx = base * orbit.scale * (1 + Math.abs(turn) * .18);
-    const ry = rx * orbit.squash;
-    const rotation = orbit.rotation + turn * .2;
-    const start = front ? 0 : Math.PI;
-    const end = front ? Math.PI : Math.PI * 2;
+  for (const mote of heroMotes) {
+    if (mote.front !== front) continue;
+
+    const angle = mote.angle + time * mote.drift;
+    const driftX = Math.sin(time * .29 + mote.phase) * mote.wanderX;
+    const driftY = Math.cos(time * .23 + mote.phase * 1.17) * mote.wanderY;
+    const x = point.x + Math.cos(angle) * extentX * mote.radius + driftX + rotationShift;
+    const y = point.y + Math.sin(angle) * extentY * mote.radius * mote.vertical + driftY - state.rx * (front ? .7 : -.3);
+    const wave = .5 + Math.sin(time * mote.twinkle + mote.phase) * .5;
+    const flash = Math.pow(wave, 2.15);
+    const alpha = mote.alpha * (front ? .3 + flash * .7 : .15 + flash * .45);
+    const size = mote.size * (.72 + flash * .38);
+    const color = cakeScene
+      ? (mote.tone < .5 ? "255,226,157" : mote.tone < .76 ? "238,244,255" : mote.tone < .9 ? "183,203,255" : "222,183,255")
+      : (mote.tone < .46 ? "255,244,211" : mote.tone < .72 ? "213,226,255" : mote.tone < .9 ? "184,206,255" : "225,188,255");
 
     ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = `rgb(${color})`;
+    ctx.shadowColor = `rgba(${color},.92)`;
+    ctx.shadowBlur = size * (front ? 9 : 6);
     ctx.beginPath();
-    ctx.strokeStyle = `rgba(${orbit.color},${front ? .68 : .28})`;
-    ctx.lineWidth = front ? 1.45 : 1;
-    ctx.shadowColor = `rgba(${orbit.color},.72)`;
-    ctx.shadowBlur = front ? 12 : 7;
-    ctx.ellipse(point.x, point.y + base * .07, rx, ry, rotation, start, end);
-    ctx.stroke();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
 
-    for (let i = 0; i < 5; i += 1) {
-      const theta = time * orbit.speed * 2.7 + i * Math.PI * .4 + orbitIndex;
-      const isFront = Math.sin(theta) >= 0;
-      if (isFront !== front) continue;
-      const cos = Math.cos(theta);
-      const sin = Math.sin(theta);
-      const px = point.x + rx * cos * Math.cos(rotation) - ry * sin * Math.sin(rotation);
-      const py = point.y + base * .07 + rx * cos * Math.sin(rotation) + ry * sin * Math.cos(rotation);
-      const size = i === 0 ? 3.2 : 1.35 + (i % 3) * .55;
+    if (mote.glint && flash > .78) {
+      const ray = size * (2.7 + flash * 2.2);
+      ctx.globalAlpha = alpha * .58;
+      ctx.lineWidth = Math.max(.35, size * .22);
       ctx.beginPath();
-      ctx.fillStyle = `rgba(${orbit.color},${front ? .95 : .54})`;
-      ctx.arc(px, py, size, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(x - ray, y);
+      ctx.lineTo(x + ray, y);
+      ctx.moveTo(x, y - ray);
+      ctx.lineTo(x, y + ray);
+      ctx.strokeStyle = `rgba(${color},.9)`;
+      ctx.stroke();
     }
     ctx.restore();
-  });
+  }
   ctx.shadowBlur = 0;
 }
 
@@ -400,9 +424,9 @@ function animate(now) {
   updateHeroDepth(time);
   drawStars(time);
   drawHeroHalo(backCtx, time);
-  drawOrbitLayer(backCtx, time, false);
+  drawHeroMotes(backCtx, time, false);
   drawCandle(time);
-  drawOrbitLayer(frontCtx, time, true);
+  drawHeroMotes(frontCtx, time, true);
   drawPetals(delta, time);
   drawBursts(delta);
   requestAnimationFrame(animate);
