@@ -6,12 +6,14 @@
     <meta name="theme-color" content="#dce1ef" />
     <meta name="description" content="给老币的一束栀子与生日星光" />
     <title>老币，生日快乐</title>
-    <script type="module" crossorigin src="./assets/index-DliXdSe_.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-qjsLGVYV.css">
+    <script type="module" crossorigin src="./assets/index-BEdm_t2Z.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BKmadf6W.css">
   </head>
   <body>
-    <div class="environment" aria-hidden="true">
-      <img src="./assets/pearl-conservatory.webp" alt="" />
+    <div id="visual-stage" class="visual-stage" aria-hidden="true">
+      <img class="scene-layer scene-layer--base" src="./assets/pearl-conservatory.webp" alt="" />
+      <img class="scene-layer scene-layer--bouquet" src="./assets/fallback-bouquet.webp" alt="" />
+      <img class="scene-layer scene-layer--cake" src="./assets/fallback-cake.webp" alt="" />
     </div>
 
     <div class="code-cinema" aria-hidden="true">
@@ -85,12 +87,7 @@ console.log('生日快乐');</pre>
       </div>
     </div>
 
-    <div class="fallback-stage" aria-hidden="true">
-      <img class="fallback-stage__bouquet" src="./assets/fallback-bouquet.webp" alt="" />
-      <img class="fallback-stage__cake" src="./assets/fallback-cake.webp" alt="" />
-    </div>
-
-    <canvas id="scene" aria-label="可旋转的栀子花束与生日蛋糕动画"></canvas>
+    <canvas id="effects" aria-hidden="true"></canvas>
 
     <main class="ui-shell">
       <section id="welcome" class="story-panel story-panel--welcome is-active" aria-labelledby="welcome-title">
@@ -121,9 +118,9 @@ console.log('生日快乐');</pre>
         <button id="music" type="button" aria-pressed="false">音乐：开</button>
         <button id="replay" type="button">重新播放</button>
       </nav>
-      <p id="fallback" role="status">星光已抵达。老币，生日快乐。</p>
     </main>
 
     <audio id="bgm" src="./audio/bgm.mp3" preload="metadata" loop></audio>
+    <img id="petal-sprite" src="./assets/petal-sprite.webp" alt="" hidden />
   </body>
 </html>
