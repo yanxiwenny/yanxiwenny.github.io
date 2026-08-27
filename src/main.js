@@ -1,20 +1,20 @@
 import "./styles.css";
 
 const $ = (id) => document.getElementById(id);
-const canvas = $("effects");
-const ctx = canvas.getContext("2d", { alpha: true });
+const backCanvas = $("effects-back");
+const frontCanvas = $("effects-front");
+const backCtx = backCanvas.getContext("2d", { alpha: true });
+const frontCtx = frontCanvas.getContext("2d", { alpha: true });
 const petalSprite = $("petal-sprite");
 const audio = $("bgm");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const mobile = window.matchMedia("(max-width: 720px)").matches;
 
 let scene = "welcome";
 let wished = false;
 let width = window.innerWidth;
 let height = window.innerHeight;
 let dpr = 1;
-let pointerX = width * 0.5;
-let pointerY = height * 0.5;
+let mobile = window.matchMedia("(max-width: 720px)").matches;
 let parallaxX = 0;
 let parallaxY = 0;
 let targetParallaxX = 0;
@@ -27,8 +27,35 @@ const petals = [];
 const embers = [];
 const bursts = [];
 
+const heroStates = {};
+
+for (const name of ["bouquet", "cake"]) {
+  const stage = $(`${name}-stage`);
+  const rotor = stage.querySelector(".hero-rotor");
+  heroStates[name] = {
+    name,
+    stage,
+    rotor,
+    dragging: false,
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startUserX: 0,
+    startUserY: 0,
+    userX: 0,
+    userY: 0,
+    rx: 0,
+    ry: 0,
+    phase: name === "bouquet" ? .2 : 1.4
+  };
+}
+
 function random(min, max) {
   return min + Math.random() * (max - min);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function setPanel(id, active) {
@@ -37,15 +64,20 @@ function setPanel(id, active) {
   panel.setAttribute("aria-hidden", String(!active));
 }
 
-function resizeCanvas() {
+function resizeCanvases() {
   width = window.innerWidth;
   height = window.innerHeight;
+  mobile = window.matchMedia("(max-width: 720px)").matches;
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(width * dpr);
-  canvas.height = Math.round(height * dpr);
-  canvas.style.width = width + "px";
-  canvas.style.height = height + "px";
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  for (const [canvas, ctx] of [[backCanvas, backCtx], [frontCanvas, frontCtx]]) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
   createStars();
   createPetals();
   createEmbers();
@@ -53,31 +85,32 @@ function resizeCanvas() {
 
 function createStars() {
   stars.length = 0;
-  const count = reducedMotion ? 34 : mobile ? 72 : 130;
+  const count = reducedMotion ? 42 : mobile ? 92 : 170;
   for (let i = 0; i < count; i += 1) {
     stars.push({
       x: Math.random() * width,
       y: Math.random() * height,
-      size: random(.55, 2.2),
-      alpha: random(.12, .58),
-      twinkle: random(.6, 1.8),
+      size: random(.45, 2.15),
+      alpha: random(.12, .68),
+      twinkle: random(.7, 2.1),
       phase: random(0, Math.PI * 2),
-      drift: random(1.5, 5.5)
+      drift: random(1.2, 5.2),
+      hue: Math.random() > .75 ? "153,190,255" : "255,232,171"
     });
   }
 }
 
 function freshPetal(fromTop = true) {
   return {
-    x: random(width * .36, width * 1.04),
-    y: fromTop ? random(-height * .45, -20) : random(0, height),
-    size: random(mobile ? 25 : 34, mobile ? 54 : 76),
-    speed: random(12, 31),
-    sway: random(16, 45),
+    x: random(width * (mobile ? .06 : .42), width * .98),
+    y: fromTop ? random(-height * .4, -20) : random(0, height),
+    size: random(mobile ? 24 : 31, mobile ? 52 : 70),
+    speed: random(12, 30),
+    sway: random(16, 48),
     phase: random(0, Math.PI * 2),
     rotation: random(-Math.PI, Math.PI),
-    spin: random(-.3, .3),
-    alpha: random(.38, .82)
+    spin: random(-.34, .34),
+    alpha: random(.36, .78)
   };
 }
 
@@ -89,50 +122,88 @@ function createPetals() {
 
 function createEmbers() {
   embers.length = 0;
-  const count = reducedMotion ? 9 : mobile ? 18 : 34;
+  const count = reducedMotion ? 10 : mobile ? 22 : 38;
   for (let i = 0; i < count; i += 1) {
     embers.push({
       phase: random(0, Math.PI * 2),
-      radius: random(14, 82),
+      radius: random(18, 92),
       speed: random(.24, .72),
-      size: random(.6, 2.2),
-      alpha: random(.18, .64)
+      size: random(.7, 2.35),
+      alpha: random(.2, .72)
     });
   }
 }
 
-function scenePoint() {
+function heroPoint() {
   return {
-    x: width * (mobile ? .67 : .744),
-    y: height * (mobile ? .2 : .19)
+    x: width * (mobile ? .5 : .69),
+    y: height * (mobile ? .42 : .52)
+  };
+}
+
+function candlePoint() {
+  return {
+    x: width * (mobile ? .5 : .69),
+    y: height * (mobile ? .145 : .225)
   };
 }
 
 function burst(x, y, count = 48, palette = "pearl") {
   for (let i = 0; i < count; i += 1) {
     const angle = random(0, Math.PI * 2);
-    const speed = random(24, 150);
+    const speed = random(28, 172);
     bursts.push({
       x,
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       life: 1,
-      decay: random(.45, 1.05),
-      size: random(1, 3.4),
+      decay: random(.42, 1.02),
+      size: random(1, 3.7),
       color: palette === "gold"
-        ? (Math.random() > .36 ? "255,225,159" : "255,248,226")
-        : (Math.random() > .45 ? "229,220,255" : "255,252,240")
+        ? (Math.random() > .34 ? "255,211,119" : "255,250,224")
+        : (Math.random() > .44 ? "173,190,255" : "255,244,220")
     });
   }
 }
 
-function updateParallax() {
+function updateBackgroundParallax() {
   if (reducedMotion) return;
   parallaxX += (targetParallaxX - parallaxX) * .045;
   parallaxY += (targetParallaxY - parallaxY) * .045;
-  document.documentElement.style.setProperty("--parallax-x", parallaxX.toFixed(2) + "px");
-  document.documentElement.style.setProperty("--parallax-y", parallaxY.toFixed(2) + "px");
+  document.documentElement.style.setProperty("--parallax-x", `${parallaxX.toFixed(2)}px`);
+  document.documentElement.style.setProperty("--parallax-y", `${parallaxY.toFixed(2)}px`);
+}
+
+function updateHeroDepth(time) {
+  for (const state of Object.values(heroStates)) {
+    let targetX = state.userX;
+    let targetY = state.userY;
+
+    if (!state.dragging && !reducedMotion) {
+      targetX += Math.sin(time * .52 + state.phase) * 2.4;
+      targetY += Math.sin(time * .39 + state.phase) * 5.4;
+      state.userX *= .998;
+      state.userY *= .998;
+    }
+
+    state.rx += (targetX - state.rx) * (state.dragging ? .22 : .075);
+    state.ry += (targetY - state.ry) * (state.dragging ? .22 : .075);
+
+    const midX = state.ry * .62;
+    const midY = -state.rx * .52;
+    const frontX = state.ry * 1.18;
+    const frontY = -state.rx * 1.02;
+
+    state.rotor.style.setProperty("--hero-rx", `${state.rx.toFixed(2)}deg`);
+    state.rotor.style.setProperty("--hero-ry", `${state.ry.toFixed(2)}deg`);
+    state.rotor.style.setProperty("--layer-x-mid", `${midX.toFixed(2)}px`);
+    state.rotor.style.setProperty("--layer-y-mid", `${midY.toFixed(2)}px`);
+    state.rotor.style.setProperty("--layer-x-front", `${frontX.toFixed(2)}px`);
+    state.rotor.style.setProperty("--layer-y-front", `${frontY.toFixed(2)}px`);
+    state.rotor.style.setProperty("--shadow-x", `${(-state.ry * 1.42).toFixed(2)}px`);
+    state.rotor.style.setProperty("--shadow-y", `${(12 + state.rx * .55).toFixed(2)}px`);
+  }
 }
 
 function drawStars(time) {
@@ -141,13 +212,80 @@ function drawStars(time) {
     const alpha = star.alpha * (.42 + pulse * .58);
     star.y -= star.drift * .004;
     if (star.y < -4) star.y = height + 4;
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(255,250,229,${alpha})`;
-    ctx.shadowColor = "rgba(255,242,198,.75)";
-    ctx.shadowBlur = star.size * 5;
-    ctx.arc(star.x, star.y, star.size * (.74 + pulse * .26), 0, Math.PI * 2);
-    ctx.fill();
+    backCtx.beginPath();
+    backCtx.fillStyle = `rgba(${star.hue},${alpha})`;
+    backCtx.shadowColor = `rgba(${star.hue},.75)`;
+    backCtx.shadowBlur = star.size * 6;
+    backCtx.arc(star.x, star.y, star.size * (.72 + pulse * .28), 0, Math.PI * 2);
+    backCtx.fill();
   }
+  backCtx.shadowBlur = 0;
+}
+
+function drawHeroHalo(ctx, time) {
+  if (scene !== "bouquet" && scene !== "cake" && scene !== "wished") return;
+  const point = heroPoint();
+  const radius = Math.min(width * (mobile ? .44 : .29), height * .43);
+  const pulse = 1 + Math.sin(time * 1.15) * .04;
+  const glow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius * pulse);
+  glow.addColorStop(0, scene === "bouquet" ? "rgba(176,159,255,.18)" : "rgba(120,151,255,.2)");
+  glow.addColorStop(.48, "rgba(104,118,227,.08)");
+  glow.addColorStop(1, "rgba(24,30,70,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
+}
+
+function drawOrbitLayer(ctx, time, front) {
+  if (scene !== "bouquet" && scene !== "cake" && scene !== "wished") return;
+
+  const point = heroPoint();
+  const base = Math.min(width * (mobile ? .38 : .24), height * .34);
+  const state = scene === "bouquet" ? heroStates.bouquet : heroStates.cake;
+  const turn = state.ry * Math.PI / 180;
+  const orbitSet = scene === "bouquet"
+    ? [
+        { scale: 1.23, squash: .31, rotation: -.2, speed: .17, color: "183,166,255" },
+        { scale: .94, squash: .42, rotation: .34, speed: -.22, color: "255,217,144" },
+        { scale: .7, squash: .28, rotation: -.52, speed: .29, color: "126,192,255" }
+      ]
+    : [
+        { scale: 1.18, squash: .3, rotation: -.18, speed: .2, color: "163,179,255" },
+        { scale: .89, squash: .4, rotation: .38, speed: -.25, color: "255,205,118" },
+        { scale: .68, squash: .25, rotation: -.48, speed: .33, color: "214,143,255" }
+      ];
+
+  orbitSet.forEach((orbit, orbitIndex) => {
+    const rx = base * orbit.scale * (1 + Math.abs(turn) * .18);
+    const ry = rx * orbit.squash;
+    const rotation = orbit.rotation + turn * .2;
+    const start = front ? 0 : Math.PI;
+    const end = front ? Math.PI : Math.PI * 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(${orbit.color},${front ? .68 : .28})`;
+    ctx.lineWidth = front ? 1.45 : 1;
+    ctx.shadowColor = `rgba(${orbit.color},.72)`;
+    ctx.shadowBlur = front ? 12 : 7;
+    ctx.ellipse(point.x, point.y + base * .07, rx, ry, rotation, start, end);
+    ctx.stroke();
+
+    for (let i = 0; i < 5; i += 1) {
+      const theta = time * orbit.speed * 2.7 + i * Math.PI * .4 + orbitIndex;
+      const isFront = Math.sin(theta) >= 0;
+      if (isFront !== front) continue;
+      const cos = Math.cos(theta);
+      const sin = Math.sin(theta);
+      const px = point.x + rx * cos * Math.cos(rotation) - ry * sin * Math.sin(rotation);
+      const py = point.y + base * .07 + rx * cos * Math.sin(rotation) + ry * sin * Math.cos(rotation);
+      const size = i === 0 ? 3.2 : 1.35 + (i % 3) * .55;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${orbit.color},${front ? .95 : .54})`;
+      ctx.arc(px, py, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  });
   ctx.shadowBlur = 0;
 }
 
@@ -159,46 +297,72 @@ function drawPetals(delta, time) {
     petal.rotation += petal.spin * delta;
     const x = petal.x + Math.sin(time * .72 + petal.phase) * petal.sway;
 
-    if (petal.y > height + petal.size * 1.6) {
-      Object.assign(petal, freshPetal(true));
-    }
+    if (petal.y > height + petal.size * 1.6) Object.assign(petal, freshPetal(true));
 
-    ctx.save();
-    ctx.translate(x, petal.y);
-    ctx.rotate(petal.rotation + Math.sin(time + petal.phase) * .12);
-    ctx.globalAlpha = petal.alpha;
-    ctx.drawImage(petalSprite, -petal.size * .49, -petal.size * .5, petal.size * .98, petal.size);
-    ctx.restore();
+    frontCtx.save();
+    frontCtx.translate(x, petal.y);
+    frontCtx.rotate(petal.rotation + Math.sin(time + petal.phase) * .12);
+    frontCtx.globalAlpha = petal.alpha;
+    frontCtx.drawImage(petalSprite, -petal.size * .49, -petal.size * .5, petal.size * .98, petal.size);
+    frontCtx.restore();
   }
 }
 
 function drawCandle(time) {
   if (scene !== "cake" && scene !== "wished") return;
-  const anchor = scenePoint();
+  const anchor = candlePoint();
   const breath = .86 + Math.sin(time * 5.2) * .08 + Math.sin(time * 2.3) * .06;
-  const strength = wished ? 0 : 1;
+  if (wished) return;
 
-  if (strength > 0) {
-    const glow = ctx.createRadialGradient(anchor.x, anchor.y, 0, anchor.x, anchor.y, 72 * breath);
-    glow.addColorStop(0, "rgba(255,250,220,.54)");
-    glow.addColorStop(.22, "rgba(255,213,125,.24)");
-    glow.addColorStop(1, "rgba(255,199,100,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(anchor.x - 85, anchor.y - 85, 170, 170);
+  const sway = Math.sin(time * 4.7) * 3.2 + Math.sin(time * 8.1) * 1.15;
+  const flameHeight = 31 * breath;
+  const flameWidth = 8.4 + Math.sin(time * 6.4) * .8;
+  const glowY = anchor.y - flameHeight * .46;
 
-    for (const ember of embers) {
-      const progress = (time * ember.speed + ember.phase) % 1;
-      const x = anchor.x + Math.sin(progress * 7 + ember.phase) * ember.radius * .22;
-      const y = anchor.y - 4 - progress * ember.radius;
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(255,226,155,${ember.alpha * (1 - progress)})`;
-      ctx.shadowColor = "rgba(255,214,126,.8)";
-      ctx.shadowBlur = 8;
-      ctx.arc(x, y, ember.size * (1 - progress * .4), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
+  const glow = backCtx.createRadialGradient(anchor.x + sway * .3, glowY, 0, anchor.x, glowY, 82 * breath);
+  glow.addColorStop(0, "rgba(255,250,220,.66)");
+  glow.addColorStop(.22, "rgba(255,190,92,.3)");
+  glow.addColorStop(1, "rgba(255,164,77,0)");
+  backCtx.fillStyle = glow;
+  backCtx.fillRect(anchor.x - 96, glowY - 96, 192, 192);
+
+  frontCtx.save();
+  frontCtx.translate(anchor.x + sway, anchor.y);
+  frontCtx.shadowColor = "rgba(255,177,62,.95)";
+  frontCtx.shadowBlur = 16;
+  const flameGradient = frontCtx.createLinearGradient(0, 4, 0, -flameHeight);
+  flameGradient.addColorStop(0, "rgba(255,119,34,.98)");
+  flameGradient.addColorStop(.42, "rgba(255,218,115,1)");
+  flameGradient.addColorStop(.78, "rgba(255,250,222,1)");
+  flameGradient.addColorStop(1, "rgba(203,225,255,.93)");
+  frontCtx.fillStyle = flameGradient;
+  frontCtx.beginPath();
+  frontCtx.moveTo(0, 4);
+  frontCtx.bezierCurveTo(-flameWidth, -4, -flameWidth * .72, -flameHeight * .58, sway * .18, -flameHeight);
+  frontCtx.bezierCurveTo(flameWidth * .72, -flameHeight * .56, flameWidth, -3, 0, 4);
+  frontCtx.fill();
+
+  frontCtx.shadowBlur = 6;
+  frontCtx.fillStyle = "rgba(255,255,244,.88)";
+  frontCtx.beginPath();
+  frontCtx.moveTo(0, 1);
+  frontCtx.bezierCurveTo(-3.2, -4, -2.3, -flameHeight * .38, sway * .1, -flameHeight * .62);
+  frontCtx.bezierCurveTo(3, -flameHeight * .34, 3.3, -3, 0, 1);
+  frontCtx.fill();
+  frontCtx.restore();
+
+  for (const ember of embers) {
+    const progress = (time * ember.speed + ember.phase) % 1;
+    const x = anchor.x + sway * .35 + Math.sin(progress * 7 + ember.phase) * ember.radius * .22;
+    const y = anchor.y - flameHeight * .78 - progress * ember.radius;
+    frontCtx.beginPath();
+    frontCtx.fillStyle = `rgba(255,220,139,${ember.alpha * (1 - progress)})`;
+    frontCtx.shadowColor = "rgba(255,198,93,.9)";
+    frontCtx.shadowBlur = 9;
+    frontCtx.arc(x, y, ember.size * (1 - progress * .4), 0, Math.PI * 2);
+    frontCtx.fill();
   }
+  frontCtx.shadowBlur = 0;
 }
 
 function drawBursts(delta) {
@@ -215,14 +379,14 @@ function drawBursts(delta) {
       continue;
     }
 
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(${particle.color},${Math.max(0, particle.life)})`;
-    ctx.shadowColor = `rgba(${particle.color},.8)`;
-    ctx.shadowBlur = 10;
-    ctx.arc(particle.x, particle.y, particle.size * Math.max(.2, particle.life), 0, Math.PI * 2);
-    ctx.fill();
+    frontCtx.beginPath();
+    frontCtx.fillStyle = `rgba(${particle.color},${Math.max(0, particle.life)})`;
+    frontCtx.shadowColor = `rgba(${particle.color},.9)`;
+    frontCtx.shadowBlur = 11;
+    frontCtx.arc(particle.x, particle.y, particle.size * Math.max(.2, particle.life), 0, Math.PI * 2);
+    frontCtx.fill();
   }
-  ctx.shadowBlur = 0;
+  frontCtx.shadowBlur = 0;
 }
 
 function animate(now) {
@@ -230,11 +394,16 @@ function animate(now) {
   const time = now / 1000;
   lastTime = now;
 
-  ctx.clearRect(0, 0, width, height);
-  updateParallax();
+  backCtx.clearRect(0, 0, width, height);
+  frontCtx.clearRect(0, 0, width, height);
+  updateBackgroundParallax();
+  updateHeroDepth(time);
   drawStars(time);
-  drawPetals(delta, time);
+  drawHeroHalo(backCtx, time);
+  drawOrbitLayer(backCtx, time, false);
   drawCandle(time);
+  drawOrbitLayer(frontCtx, time, true);
+  drawPetals(delta, time);
   drawBursts(delta);
   requestAnimationFrame(animate);
 }
@@ -264,7 +433,8 @@ function startExperience() {
   setPanel("welcome", false);
   setPanel("bouquet-copy", true);
   $("controls").classList.add("is-visible");
-  burst(width * .66, height * .52, mobile ? 36 : 72, "pearl");
+  const point = heroPoint();
+  burst(point.x, point.y, mobile ? 46 : 92, "pearl");
   startMusic();
 }
 
@@ -273,8 +443,8 @@ function acceptBouquet() {
   updateScene("cake");
   setPanel("bouquet-copy", false);
   setPanel("birthday", true);
-  const anchor = scenePoint();
-  burst(anchor.x, anchor.y + 80, mobile ? 42 : 84, "gold");
+  const point = heroPoint();
+  burst(point.x, point.y, mobile ? 52 : 110, "gold");
 }
 
 function makeWish() {
@@ -282,8 +452,8 @@ function makeWish() {
   wished = true;
   updateScene("wished");
   $("birthday").classList.add("is-wished");
-  const anchor = scenePoint();
-  burst(anchor.x, anchor.y, mobile ? 72 : 130, "gold");
+  const anchor = candlePoint();
+  burst(anchor.x, anchor.y, mobile ? 86 : 160, "gold");
 }
 
 function toggleMusic() {
@@ -298,6 +468,15 @@ function toggleMusic() {
   }
 }
 
+function resetHero(state) {
+  state.dragging = false;
+  state.userX = 0;
+  state.userY = 0;
+  state.rx = 0;
+  state.ry = 0;
+  state.stage.classList.remove("is-dragged");
+}
+
 function replayExperience() {
   wished = false;
   updateScene("welcome");
@@ -309,28 +488,57 @@ function replayExperience() {
   createPetals();
   targetParallaxX = 0;
   targetParallaxY = 0;
+  Object.values(heroStates).forEach(resetHero);
+}
+
+function beginDrag(event, state) {
+  if (scene !== state.name) return;
+  state.dragging = true;
+  state.pointerId = event.pointerId;
+  state.startX = event.clientX;
+  state.startY = event.clientY;
+  state.startUserX = state.userX;
+  state.startUserY = state.userY;
+  state.rotor.setPointerCapture?.(event.pointerId);
+  state.stage.classList.add("is-dragged");
+}
+
+function moveDrag(event, state) {
+  if (!state.dragging || event.pointerId !== state.pointerId) return;
+  state.userY = clamp(state.startUserY + (event.clientX - state.startX) * .095, -14, 14);
+  state.userX = clamp(state.startUserX - (event.clientY - state.startY) * .065, -7, 7);
+}
+
+function endDrag(event, state) {
+  if (!state.dragging || (event.pointerId !== undefined && event.pointerId !== state.pointerId)) return;
+  state.dragging = false;
+  state.pointerId = null;
+  const point = heroPoint();
+  burst(point.x + state.ry * 5, point.y - state.rx * 6, mobile ? 16 : 28, state.name === "cake" ? "gold" : "pearl");
+}
+
+for (const state of Object.values(heroStates)) {
+  state.rotor.addEventListener("pointerdown", (event) => beginDrag(event, state));
+  state.rotor.addEventListener("pointermove", (event) => moveDrag(event, state));
+  state.rotor.addEventListener("pointerup", (event) => endDrag(event, state));
+  state.rotor.addEventListener("pointercancel", (event) => endDrag(event, state));
+  state.rotor.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      state.userY = clamp(state.userY + (event.key === "ArrowLeft" ? -2 : 2), -14, 14);
+      state.stage.classList.add("is-dragged");
+    }
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      state.userX = clamp(state.userX + (event.key === "ArrowUp" ? -1.5 : 1.5), -7, 7);
+      state.stage.classList.add("is-dragged");
+    }
+  });
 }
 
 window.addEventListener("pointermove", (event) => {
-  pointerX = event.clientX;
-  pointerY = event.clientY;
-  targetParallaxX = ((pointerX / width) - .5) * -14;
-  targetParallaxY = ((pointerY / height) - .5) * -9;
-});
-
-window.addEventListener("pointerdown", (event) => {
-  if (event.target.closest("button")) return;
-  if (scene === "bouquet") {
-    burst(event.clientX, event.clientY, mobile ? 16 : 28, "pearl");
-    for (let i = 0; i < 3; i += 1) {
-      const petal = freshPetal(false);
-      petal.x = event.clientX + random(-44, 44);
-      petal.y = event.clientY + random(-22, 18);
-      petals.push(petal);
-    }
-  } else if (scene === "cake") {
-    burst(event.clientX, event.clientY, mobile ? 14 : 24, "gold");
-  }
+  targetParallaxX = ((event.clientX / width) - .5) * -13;
+  targetParallaxY = ((event.clientY / height) - .5) * -8;
 });
 
 $("start").addEventListener("click", startExperience);
@@ -338,9 +546,9 @@ $("accept").addEventListener("click", acceptBouquet);
 $("wish").addEventListener("click", makeWish);
 $("music").addEventListener("click", toggleMusic);
 $("replay").addEventListener("click", replayExperience);
-window.addEventListener("resize", resizeCanvas);
+window.addEventListener("resize", resizeCanvases);
 
 document.body.dataset.scene = "welcome";
-resizeCanvas();
+resizeCanvases();
 requestAnimationFrame(animate);
 document.documentElement.dataset.birthdayReady = "true";
