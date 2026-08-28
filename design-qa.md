@@ -1,43 +1,37 @@
-# Design QA — Firefly Star-Mote Pass
+# Birthday V2 design QA
 
-- Source visual truth: `/workspace/scratch/fca190e24be5/upload/de41cce4-d9ff-4569-93b7-87ffb8bc7138.png`
-- Bouquet implementation: `/workspace/scratch/qa-bouquet-firefly.jpg`
-- Cake implementation: `/workspace/scratch/qa-cake-firefly-final.jpg`
-- Combined comparison: `/workspace/scratch/qa-particle-comparison.jpg`
-- Browser viewport: `1363 × 936` CSS px, device scale factor `1`.
-- Tested states: welcome, bouquet, cake and wished.
+## Scope
 
-## Visual comparison
+- Route: `docs/birthday-v2/`
+- Reference state: the existing birthday cake experience at 1363 × 936
+- Implementation states checked: welcome, opening, bouquet, drag rotation, lunar transition, cake, wish, music, and replay
+- Comparison image: `qa-v2-comparison.jpg`
 
-- Orbit removal: passed. The three prominent elliptical trajectory lines are absent from both hero scenes.
-- Particle language: passed. The replacement uses small independent pearl-white, champagne-gold, icy-blue and lilac points rather than connected paths.
-- Density: passed. Desktop renders 360 hero-local motes plus the ambient star field; mobile renders 210 and reduced-motion renders 96.
-- Depth: passed. Motes are split between canvases behind and in front of the bouquet/cake, with distinct opacity and glow ranges.
-- Motion: passed. Each mote has its own drift direction, wander radius, phase and twinkle rate, producing a firefly-like asynchronous shimmer rather than orbital travel.
-- Accents: passed. Only a small subset briefly forms restrained cross-shaped glints; most particles remain sub-1.2 px points.
-- Bouquet: passed. The ivory/lavender subject stays crisp and prominent while nearby motes and falling petals remain clearly separable.
-- Cake: passed. The pearl-lavender tiers, lace, crystals and flowers remain legible; the star points support rather than obscure the candle.
-- Typography and code credits: passed. Chinese copy remains readable and the slow, translucent code background remains visible.
+## Visual review
 
-## Interaction checks
+- P0: none
+- P1: none
+- P2: none
+- Typography remains legible over the enlarged upward-scrolling code because the story copy uses a restrained local veil and stronger cinematic text shadow.
+- The pearl-silver moon is a real transparent raster asset rather than a CSS approximation and stays visually subordinate to the bouquet and cake.
+- The bouquet and cake retain their detailed 2.5D depth treatment, drag rotation, layered parallax, and object-specific star motes.
+- Ambient stars are denser and brighter without orbit trails; small particles receive limited glow to preserve runtime responsiveness.
+- Candle flame and halo are visibly larger and warmer, with more embers and no obstruction of the cake decorations.
+- The bouquet-to-cake change now uses a timed lunar transition with retreating copy, drifting petals, a moon push-in, and two particle gathers.
+- Responsive rules preserve centered content, safe control spacing, and reduced particle counts on narrow displays.
 
-- Welcome → bouquet transition: passed.
-- Bouquet → cake transition: passed.
-- Layered drag/rotation implementation remains present for bouquet and cake.
-- Dynamic candle: passed; flame, glow and embers remain independent of the new particle field.
-- Wish action: passed; keyboard activation extinguished the flame, played the burst and revealed `愿望已被星光好好收下。`.
-- Music and replay controls remain present and accessible.
+## Functional review
 
-## Technical checks
+- Start opens the experience and starts audio after user interaction.
+- Bouquet and cake respond to pointer drag and keyboard arrows.
+- Accepting the bouquet triggers the lunar transition and then reveals the cake.
+- Wishing extinguishes the flame and confirms the wish.
+- Music and replay controls work throughout the flow.
+- JavaScript syntax and all local asset references passed validation.
+- Browser console has no site-origin errors after the final reload; remaining extension-origin metadata messages are unrelated to the page.
 
-- Production build completed successfully with Vite.
-- `dist/` and `docs/` are byte-for-byte synchronized.
-- Runtime resources remain relative and local, including `./audio/bgm.mp3`.
-- No `drawOrbit` function or canvas ellipse trajectory remains in the source.
-- No Three.js import, WebGL renderer, GLB/GLTF model or runtime external HTTP/HTTPS asset was introduced.
+## Follow-up polish
 
-## Findings
-
-No actionable P0, P1, P2 or P3 issue remains in the tested flow.
+- P3: on unusually slow phones, the reduced-motion and mobile particle caps intentionally trade some sparkle density for smoother interaction.
 
 final result: passed
